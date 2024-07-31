@@ -1,0 +1,465 @@
+---
+title: "Customer Behaviour Segmentation"
+output:
+  pdf_document: default
+  html_notebook: default
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+This study explores customer behavior segmentation using three distinct clustering models; K-Means, DBSCAN and Hierarchical Clustering in R-studio applied to the Mall Customer Dataset. The primary objective is to understand and categorize customer behavior based on their spending patterns and demographic attributes and suggest the best model for customer segmentation and recommendations. .
+
+The dataset, containing information such as customer age, annual income, and spending score, undergoes preprocessing steps like scaling or normalization. Subsequently, DBSCAN, Hierarchical Clustering, and K-Means algorithms are applied to cluster customers into distinct segments.
+
+Evaluation metrics and visualizations, including scatter plots, pair plots, and cluster comparison charts, are utilized to assess the quality and effectiveness of the generated clusters. The study compares the performance of these models in identifying coherent customer segments, highlighting their strengths and weaknesses in handling varying shapes and sizes of clusters, noise, and outliers within the dataset.
+
+This investigation aims to provide insights into the diverse approaches of customer segmentation using different clustering methodologies, offering guidance on the most suitable model for extracting meaningful and actionable customer behavior patterns from the Mall Customer Dataset. 
+
+```{r}
+# Load dataset 
+customer_data <- read.csv("C:/Users/LENOVO/Desktop/ThinkPacificProject/Mall_Customers.csv")
+```
+
+```{r}
+#Rename some column names
+customer_data <- rename(customer_data, Annual_Income=Annual.Income..k..,
+                   Spending_Score=Spending.Score..1.100., Gender=Genre)
+```
+
+```{r}
+#View customer
+View(customer_data)
+```
+
+```{r}
+# Convert heart_data to a data frame
+customer_df <- as.data.frame(customer_data)
+```
+
+```{r}
+# make a copy of the df
+customer_df_km <- customer_df
+```
+
+```{r}
+# view the head
+head(customer_df)
+```
+
+```{r}
+#dimensions of the data
+dim(customer_df)
+
+```
+
+```{r}
+#data structure
+str(customer_df)
+```
+
+
+```{r}
+# list types for each attribute
+sapply(customer_df, class)
+
+```
+```{r}
+#data summary
+summary(customer_df)
+
+```
+
+
+```{r}
+#checking for missing values
+sum(is.na(customer_df))
+```
+
+```{r}
+# Check missing values for each of the columns
+customer_df %>%
+  purrr::map_df(~ sum(is.na(.)))
+
+```
+```{r}
+# View summary statistics with numeric hist
+skimmed_data <- skim(customer_df)
+View(skimmed_data)
+```
+
+```{r}
+# Count the occurrences of unique values in the "target" column
+table(customer_df$Gender)
+
+```
+## Exploratory Data Analysis(EDA)
+
+```{r}
+# Creating a barplot to assess gender distribution of my sample of customers.
+ggplot(customer_df,aes(x= Gender)) +
+  geom_bar(stat="count",width=0.5,fill="steelblue") +
+  theme_minimal()+
+  labs(title="Barplot to display Gender Comparison", xlab="Gender")
+
+```
+
+```{r}
+# Age distribution of the customers
+ggplot(customer_df, aes(x = Age)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Customer Ages",
+       x = "Age",
+       y = "Count") +
+  theme_minimal()
+```
+
+```{r}
+# Annual income distribution of the customers
+ggplot(customer_df, aes(x = Annual_Income)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Annual Income",
+       x = "Annual Income",
+       y = "Count") +
+  theme_minimal()
+```
+
+```{r}
+# Annual income distribution of the customers
+ggplot(customer_df, aes(x = Spending_Score)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Spending Score",
+       x = "Spending Score",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+```{r}
+# Calculate the correlation matrix
+numeric_customer_df <- customer_df[, sapply(customer_df, is.numeric)]
+corr_matrix <- cor(numeric_customer_df)
+
+# Heatmap 
+ggplot(data = melt(corr_matrix), aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = round(value, 2)), vjust = 1) +  # Add labels with 2 decimal places
+  scale_fill_gradient(low = "steelblue", high = "gray") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Correlation Heatmap")
+
+```
+```{r}
+# Create a histogram with ggplot
+ggplot(customer_df, aes(x = Age, fill = Gender)) +
+  geom_histogram(binwidth = 1, color = 'black', alpha = 0.7) +
+  labs(title = 'Age Distribution of Customers by Gender',
+       x = 'Age',
+       y = 'Count') +
+  theme_minimal() +
+  scale_fill_manual(values = c("gray", 'steelblue'))
+
+```
+
+```{r}
+
+# Histogram to show dispersion of mall customers based on age groups
+ggplot(customer_df, aes(x = Age)) +
+  geom_vline(aes(xintercept = mean(Age)), color = "black",  #adding an intercept to indicate mean age
+             linetype = "dashed", size = 1.0) +
+  geom_histogram(binwidth = 5, aes(y = ..density..), 
+                 color = "black", fill = "steelblue") +
+  geom_density(alpha = 0.4, fill = "gray") +  #adding density plot
+  labs(title = "Histogram to Show Density of Age Groups")
+
+```
+
+
+```{r}
+# Creating density plot to show customer's annual income
+ggplot(customer_df, aes(x = Annual_Income)) +
+  geom_density(alpha=0.4, fill="steelblue") +
+  scale_x_continuous(breaks = seq(0, 200, by = 10)) +
+  labs(title="Density Plot for Annual Income")
+
+```
+
+```{r}
+# Assuming 'data' is your data frame
+plot(customer_df$CustomerID, customer_df$Annual_Income, 
+     type = "p", 
+     col = "steelblue", 
+     main = "Annual Income by CustomerID", 
+     xlab = "CustomerID", 
+     ylab = "Annual Income"
+)
+```
+
+```{r}
+
+# Assuming 'customer_df' is your data frame
+ggplot(customer_df, aes(x = Age, y = Annual_Income, color = Gender)) +
+  geom_point(size = 3) +
+  labs(title = "Scatter Plot of Age vs Annual Income by Gender",
+       x = "Age",
+       y = "Annual Income") +
+  scale_color_manual(values = c("orange","steelblue")) +
+  theme_minimal()
+
+```
+
+```{r}
+# Assuming 'customer_df' is your data frame
+ggplot(customer_df, aes(x = Age, y = Spending_Score, color = Gender)) +
+  geom_point(size = 3) +
+  labs(title = "Scatter Plot of Age vs Spending Score by Gender",
+       x = "Age",
+       y = "Spending Score") +
+  scale_color_manual(values = c("orange","steelblue")) +
+  theme_minimal()
+
+```
+
+```{r}
+# Assuming 'customer_df' is your data frame
+ggplot(customer_df, aes(y = Spending_Score, x = Annual_Income, color = Gender)) +
+  geom_point(size = 3) +
+  labs(title = "Scatter Plot of Annual Income vs Spending Score by Gender",
+       y = "Spending Score",
+       x = "Annual Income") +
+  scale_color_manual(values = c("orange","steelblue")) +
+  theme_minimal()
+
+```
+
+```{r}
+# Assuming 'customer_df' is your data frame
+ggplot(customer_df, aes(x = Spending_Score, y = Gender, fill = Gender)) +
+  geom_boxplot() +
+  labs(title = "Boxplot showing customers' Spending Score by Gender") +
+  scale_fill_manual(values = c("orange","steelblue")) +
+  theme_minimal()
+
+```
+## Training the Models
+
+## Model Implementation Using K-Means Clustering
+
+```{r}
+# Setting seed to 125 for reproducibility
+set.seed(1)
+
+```
+
+```{r}
+# Plotting the variations of clusters 
+opt <- Optimal_Clusters_KMeans(customer_df[, 3:5], max_clusters = 10, plot_clusters = T)
+
+```
+
+```{r}
+# Getting the optimal clusters 
+opt <- Optimal_Clusters_KMeans(customer_df[, 3:5], max_clusters = 10, plot_clusters = T, criterion = 'silhouette')
+
+```
+
+
+```{r}
+#Creating the customer clusters with KMeans
+km6<-kmeans(customer_df[,3:5], 6, iter.max = 100, nstart=50,
+           algorithm = "Lloyd")
+#Print the result
+km6
+```
+
+```{r}
+# Define the clustering variable
+cluster_variable <- km6$cluster
+
+# Showing the six KMeans clusters
+clusplot(
+  customer_df,                    # Data frame
+  cluster_variable,               # Clustering variable
+  color = TRUE,                   # Use color for clusters
+  shade = TRUE,                   # Use shading
+  labels = 0,                     # Do not show point labels
+  lines = 0,                      # Do not show lines
+  main = "Cluster Plot of Customer Behaviour",  # Main title
+  sub = paste("Number of Clusters:", max(cluster_variable)),  # Subtitle with the number of clusters
+  col.p = "steelblue",            # Color for points
+  col.clus = c("darkred", "green", "blue", "orange"),  # Colors for cluster ellipses
+  cex = 0.8                       # Size of labels and points
+)
+
+```
+
+
+```{r}
+
+#Perform Principal Component Analysis
+pcclust<-prcomp(customer_df[, 3:5], scale=FALSE)
+
+#Checking the summary of the PCA model
+summary(pcclust)
+
+```
+
+```{r}
+# Applying the PCA model on the data
+pcclust$rotation[, 1:2]
+
+```
+
+```{r}
+# A plot of the customers segments
+
+ggplot(customer_df, aes(x = Annual_Income , y = Spending_Score)) + 
+  geom_point(stat = "identity", aes(color = as.factor(km6$cluster))) +
+  scale_color_discrete(name = " ", 
+                       breaks=c("1", "2", "3", "4", "5","6"),
+                       labels=c("Cluster 1", "Cluster 2", "Cluster 3", 
+                                "Cluster 4", "Cluster 5","Cluster 6")) +
+  ggtitle("Segments of Mall Customers", 
+          subtitle = "Using K-means Clustering")
+
+```
+
+```{r}
+# A plot of the customers segments
+ggplot(customer_df, aes(x = Annual_Income , y = Spending_Score)) + 
+  geom_point(stat = "identity", aes(color = as.factor(km6$cluster))) +
+  scale_color_discrete(name = " ", 
+                       breaks=c( "6", "1", "4", "3", "2","5"),
+                       labels=c("Low Income, High Spending", "Medium Income, Medium Spending", "Low Income, Low Spending",
+                                "Medium Income, Medium Spending","High Income, Low Spending", "High Income, High Spending")) +
+  labs(x="Annual Income", y="Spending Score") +
+  ggtitle("Segments of Mall X Customers", 
+          subtitle = "Using K-means Clustering")
+
+```
+
+## Model Implementation Using DBSCAN clustering
+
+
+```{r}
+# Extracting the columns to be standardized
+columns_to_standardize <- c("Age", "Annual_Income", "Spending_Score")
+customer_df_scaled <- customer_df
+
+# Standardizing the selected columns in the dataframe
+customer_df_scaled[, columns_to_standardize] <- scale(customer_df[, columns_to_standardize])
+
+```
+
+```{r}
+# Run DBSCAN
+dbscan_result <- dbscan(customer_df_scaled[, c("Age", "Annual_Income", "Spending_Score")], eps = 0.5, minPts = 5)
+
+```
+
+```{r}
+# Access cluster assignments and noise points
+clusters <- dbscan_result$cluster
+noise_points <- dbscan_result$cluster == 0  # Noise points will have cluster ID 0
+
+```
+
+```{r}
+# Convert to a data frame for ggplot
+customer_df_scaled$Cluster <- as.factor(clusters)
+```
+
+```{r}
+# Visualize clusters and noise points using ggplot
+ggplot(customer_df_scaled, aes(x = Annual_Income, y = Spending_Score, color = Cluster)) +
+  geom_point() +
+  geom_point(data = subset(customer_df_scaled, noise_points), color = "black", size = 3) +
+  labs(x = "Annual Income", y = "Spending Score", title = "DBSCAN Clustering") +
+  scale_color_discrete(name = " ", 
+                       breaks=c("1", "3", "2", "4", "6","5"),
+                       labels=c("Low Income, High Spending", "Medium Income, Medium Spending", "Low Income, Low Spending",
+                                "Medium Income, Medium Spending","High Income, Low Spending", "High Income, High Spending")) +
+  theme_minimal()
+
+
+```
+
+
+## Model Implementation Using Hierarchical clustering
+
+
+```{r}
+# Comparing the distances between the data points using ‘hclust’ function
+dist_customers <- dist(customer_df[,3:5])
+hc_customers <- hclust(dist_customers, method = 'complete')
+
+```
+
+```{r}
+# Choosing the optimal cluster
+for(i in 2:7) { 
+  nam <- paste("clust", i, sep = "")
+  assign(nam, cutree(hc_customers, k = i))
+}
+
+par(mfrow = c(3, 2))
+
+plot(silhouette(clust2, dist_customers), col = "blue")
+plot(silhouette(clust3, dist_customers), col = 'blue')
+plot(silhouette(clust4, dist_customers), col = "blue")
+plot(silhouette(clust5, dist_customers), col = "blue")
+plot(silhouette(clust6, dist_customers), col = "blue")
+plot(silhouette(clust7, dist_customers), col = "blue")
+
+
+```
+
+```{r}
+# plot the dendrogram.
+clust_customers <- cutree(hc_customers, k = 5)
+dend_customers <- as.dendrogram(hc_customers)
+dend_colored <- color_branches(dend_customers, k = 5)
+par(mfrow = c(1, 1))
+plot(dend_colored)
+
+```
+
+```{r}
+# Extract the clusters
+km <- kmeans(customer_df[,3:4], 5)
+customer_df_km$ClusterNumber <- km$cluster
+segment_customers <- mutate(customer_df_km, cluster = clust_customers)
+segment_customers = subset(segment_customers, select = -c(ClusterNumber))
+```
+
+```{r}
+#Create a plot of the customers segments
+ggplot(segment_customers, aes(x = Annual_Income, y = Spending_Score, color = factor(cluster))) +
+  geom_point() +
+  scale_color_discrete(name = " ", 
+                       breaks=c("1", "2", "3", "4", "5"),
+                       labels=c("Low Income, Low Spending","Low Income, High Spending", "Medium Income, Medium Spending","High Income, High Spending",
+                                "High Income, Low Spending")) +
+  labs(x="Annual Income", y="Spending Score") +
+  ggtitle("Segments of Mall X Customers", 
+          subtitle = "Using Hierarchical Clustering")
+
+```
+
+```{r}
+# Getting the characteristcs each of the groups
+segment_customers %>% group_by(cluster, Gender) %>%
+  summarise_all(list(mean)) %>% arrange(cluster)
+
+```
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
